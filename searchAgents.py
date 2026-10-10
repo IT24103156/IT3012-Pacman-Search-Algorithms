@@ -454,36 +454,61 @@ class AStarFoodSearchAgent(SearchAgent):
 
 def foodHeuristic(state: Tuple[Tuple, List[List]], problem: FoodSearchProblem):
     """
-    Your heuristic for the FoodSearchProblem goes here.
-
-    This heuristic must be consistent to ensure correctness.  First, try to come
-    up with an admissible heuristic; almost all admissible heuristics will be
-    consistent as well.
-
-    If using A* ever finds a solution that is worse uniform cost search finds,
-    your heuristic is *not* consistent, and probably not admissible!  On the
-    other hand, inadmissible or inconsistent heuristics may find optimal
-    solutions, so be careful.
-
-    The state is a tuple ( pacmanPosition, foodGrid ) where foodGrid is a Grid
-    (see game.py) of either True or False. You can call foodGrid.asList() to get
-    a list of food coordinates instead.
-
-    If you want access to info like walls, capsules, etc., you can query the
-    problem.  For example, problem.walls gives you a Grid of where the walls
-    are.
-
-    If you want to *store* information to be reused in other calls to the
-    heuristic, there is a dictionary called problem.heuristicInfo that you can
-    use. For example, if you only want to count the walls once and store that
-    value, try: problem.heuristicInfo['wallCount'] = problem.walls.count()
-    Subsequent calls to this heuristic can access
-    problem.heuristicInfo['wallCount']
+    MST-based food heuristic:
+    nearest maze distance from Pacman to food + MST cost of remaining food.
     """
     position, foodGrid = state
-    "*** YOUR CODE HERE ***"
-    return 0
+    foodList = foodGrid.asList()
 
+    if not foodList:
+        return 0
+
+    # Cache maze distances to avoid repeated calculations.
+    if "mazeDistanceCache" not in problem.heuristicInfo:
+        problem.heuristicInfo["mazeDistanceCache"] = {}
+
+    distanceCache = problem.heuristicInfo["mazeDistanceCache"]
+
+    def getMazeDistance(pos1, pos2):
+        key = tuple(sorted((pos1, pos2)))
+
+        if key not in distanceCache:
+            distanceCache[key] = mazeDistance(
+                pos1, pos2, problem.startingGameState
+            )
+
+        return distanceCache[key]
+
+    # Distance from Pacman to the nearest remaining food.
+    nearestFoodDistance = min(
+        getMazeDistance(position, food)
+        for food in foodList
+    )
+
+    # Build a Minimum Spanning Tree (Prim's algorithm).
+    connected = {foodList[0]}
+    unconnected = set(foodList[1:])
+    mstCost = 0
+
+    while unconnected:
+        minimumDistance = float("inf")
+        nextFood = None
+
+        for connectedFood in connected:
+            for candidateFood in unconnected:
+                distance = getMazeDistance(
+                    connectedFood, candidateFood
+                )
+
+                if distance < minimumDistance:
+                    minimumDistance = distance
+                    nextFood = candidateFood
+
+        mstCost += minimumDistance
+        connected.add(nextFood)
+        unconnected.remove(nextFood)
+
+    return nearestFoodDistance + mstCost
 class ClosestDotSearchAgent(SearchAgent):
     "Search for all food using a sequence of searches"
     def registerInitialState(self, state):
