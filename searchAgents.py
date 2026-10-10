@@ -344,24 +344,51 @@ class CornersProblem(search.SearchProblem):
         return len(actions)
 
 
+
 def cornersHeuristic(state: Any, problem: CornersProblem):
-    """
-    A heuristic for the CornersProblem that you defined.
+    position, visitedCorners = state
 
-      state:   The current search state
-               (a data structure you chose in your search problem)
+    unvisitedCorners = [
+        corner for corner in problem.corners
+        if corner not in visitedCorners
+    ]
 
-      problem: The CornersProblem instance for this layout.
+    if not unvisitedCorners:
+        return 0
 
-    This function should always return a number that is a lower bound on the
-    shortest path from the state to a goal of the problem; i.e.  it should be
-    admissible (as well as consistent).
-    """
-    corners = problem.corners # These are the corner coordinates
-    walls = problem.walls # These are the walls of the maze, as a Grid (game.py)
+    def manhattan(a, b):
+        return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
-    "*** YOUR CODE HERE ***"
-    return 0 # Default to trivial solution
+    # Minimum spanning tree among unvisited corners
+    connected = {0}
+    mstCost = 0
+
+    while len(connected) < len(unvisitedCorners):
+        minimumDistance = float('inf')
+        nextIndex = None
+
+        for i in connected:
+            for j in range(len(unvisitedCorners)):
+                if j not in connected:
+                    distance = manhattan(
+                        unvisitedCorners[i],
+                        unvisitedCorners[j]
+                    )
+
+                    if distance < minimumDistance:
+                        minimumDistance = distance
+                        nextIndex = j
+
+        mstCost += minimumDistance
+        connected.add(nextIndex)
+
+    # Connect Pacman's position to the nearest unvisited corner
+    nearestDistance = min(
+        manhattan(position, corner)
+        for corner in unvisitedCorners
+    )
+
+    return nearestDistance + mstCost
 
 class AStarCornersAgent(SearchAgent):
     "A SearchAgent for FoodSearchProblem using A* and your foodHeuristic"
