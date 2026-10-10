@@ -368,24 +368,51 @@ class CornersProblem(search.SearchProblem):
         return len(actions)
 
 
+
 def cornersHeuristic(state: Any, problem: CornersProblem):
-    """
-    A heuristic for the CornersProblem that you defined.
+    position, visitedCorners = state
 
-      state:   The current search state
-               (a data structure you chose in your search problem)
+    unvisitedCorners = [
+        corner for corner in problem.corners
+        if corner not in visitedCorners
+    ]
 
-      problem: The CornersProblem instance for this layout.
+    if not unvisitedCorners:
+        return 0
 
-    This function should always return a number that is a lower bound on the
-    shortest path from the state to a goal of the problem; i.e.  it should be
-    admissible (as well as consistent).
-    """
-    corners = problem.corners # These are the corner coordinates
-    walls = problem.walls # These are the walls of the maze, as a Grid (game.py)
+    def manhattan(a, b):
+        return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
-    "*** YOUR CODE HERE ***"
-    return 0 # Default to trivial solution
+    # Minimum spanning tree among unvisited corners
+    connected = {0}
+    mstCost = 0
+
+    while len(connected) < len(unvisitedCorners):
+        minimumDistance = float('inf')
+        nextIndex = None
+
+        for i in connected:
+            for j in range(len(unvisitedCorners)):
+                if j not in connected:
+                    distance = manhattan(
+                        unvisitedCorners[i],
+                        unvisitedCorners[j]
+                    )
+
+                    if distance < minimumDistance:
+                        minimumDistance = distance
+                        nextIndex = j
+
+        mstCost += minimumDistance
+        connected.add(nextIndex)
+
+    # Connect Pacman's position to the nearest unvisited corner
+    nearestDistance = min(
+        manhattan(position, corner)
+        for corner in unvisitedCorners
+    )
+
+    return nearestDistance + mstCost
 
 class AStarCornersAgent(SearchAgent):
     "A SearchAgent for FoodSearchProblem using A* and your foodHeuristic"
@@ -450,28 +477,62 @@ class AStarFoodSearchAgent(SearchAgent):
         self.searchType = FoodSearchProblem
 
 def foodHeuristic(state: Tuple[Tuple, List[List]], problem: FoodSearchProblem):
+    """
+    MST-based food heuristic:
+    nearest maze distance from Pacman to food + MST cost of remaining food.
+    """
     position, foodGrid = state
     foodList = foodGrid.asList()
 
     if not foodList:
         return 0
 
-    distances = []
+    # Cache maze distances to avoid repeated calculations.
+    if "mazeDistanceCache" not in problem.heuristicInfo:
+        problem.heuristicInfo["mazeDistanceCache"] = {}
 
-    for food in foodList:
-        key = (position, food)
+    distanceCache = problem.heuristicInfo["mazeDistanceCache"]
 
-        if key not in problem.heuristicInfo:
-            problem.heuristicInfo[key] = mazeDistance(
-                position,
-                food,
-                problem.startingGameState
+    def getMazeDistance(pos1, pos2):
+        key = tuple(sorted((pos1, pos2)))
+
+        if key not in distanceCache:
+            distanceCache[key] = mazeDistance(
+                pos1, pos2, problem.startingGameState
             )
 
-        distances.append(problem.heuristicInfo[key])
+        return distanceCache[key]
 
-    return max(distances)
+    # Distance from Pacman to the nearest remaining food.
+    nearestFoodDistance = min(
+        getMazeDistance(position, food)
+        for food in foodList
+    )
 
+    # Build a Minimum Spanning Tree (Prim's algorithm).
+    connected = {foodList[0]}
+    unconnected = set(foodList[1:])
+    mstCost = 0
+
+    while unconnected:
+        minimumDistance = float("inf")
+        nextFood = None
+
+        for connectedFood in connected:
+            for candidateFood in unconnected:
+                distance = getMazeDistance(
+                    connectedFood, candidateFood
+                )
+
+                if distance < minimumDistance:
+                    minimumDistance = distance
+                    nextFood = candidateFood
+
+        mstCost += minimumDistance
+        connected.add(nextFood)
+        unconnected.remove(nextFood)
+
+    return nearestFoodDistance + mstCost
 class ClosestDotSearchAgent(SearchAgent):
     "Search for all food using a sequence of searches"
     def registerInitialState(self, state):
