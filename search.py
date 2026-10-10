@@ -96,8 +96,30 @@ def breadthFirstSearch(problem: SearchProblem):
 
 def uniformCostSearch(problem: SearchProblem):
     """Search the node of least total cost first."""
-    "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    priorityQueue = util.PriorityQueue()
+    startState = problem.getStartState()
+
+    priorityQueue.push((startState, []), 0)
+    visited = set()
+
+    while not priorityQueue.isEmpty():
+        state, actions = priorityQueue.pop()
+
+        if state in visited:
+            continue
+
+        visited.add(state)
+
+        if problem.isGoalState(state):
+            return actions
+
+        for successor, action, stepCost in problem.getSuccessors(state):
+            if successor not in visited:
+                newActions = actions + [action]
+                newCost = problem.getCostOfActions(newActions)
+                priorityQueue.push((successor, newActions), newCost)
+
+    return []
 
 def nullHeuristic(state, problem=None):
     """
@@ -108,8 +130,31 @@ def nullHeuristic(state, problem=None):
 
 def aStarSearch(problem: SearchProblem, heuristic=nullHeuristic):
     """Search the node that has the lowest combined cost and heuristic first."""
-    "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    priorityQueue = util.PriorityQueue()
+    startState = problem.getStartState()
+
+    priorityQueue.push((startState, [], 0), heuristic(startState, problem))
+    bestCosts = {startState: 0}
+
+    while not priorityQueue.isEmpty():
+        state, actions, cost = priorityQueue.pop()
+
+        if cost > bestCosts.get(state, float('inf')):
+            continue
+
+        if problem.isGoalState(state):
+            return actions
+
+        for successor, action, stepCost in problem.getSuccessors(state):
+            newCost = cost + stepCost
+
+            if newCost < bestCosts.get(successor, float('inf')):
+                bestCosts[successor] = newCost
+                newActions = actions + [action]
+                priority = newCost + heuristic(successor, problem)
+                priorityQueue.push((successor, newActions, newCost), priority)
+
+    return []
 
 
 # Abbreviations
